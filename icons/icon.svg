@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="128" height="128" rx="24" fill="url(#grad)"/>
+
+  <!-- 文書アイコン -->
+  <path d="M 40 30 L 88 30 L 88 40 L 98 40 L 98 98 L 40 98 Z" fill="white" opacity="0.9"/>
+  <path d="M 88 30 L 88 40 L 98 40 Z" fill="white" opacity="0.7"/>
+
+  <!-- テキスト行 -->
+  <rect x="50" y="50" width="38" height="4" rx="2" fill="#667eea"/>
+  <rect x="50" y="60" width="38" height="4" rx="2" fill="#667eea"/>
+  <rect x="50" y="70" width="28" height="4" rx="2" fill="#667eea"/>
+  <rect x="50" y="80" width="35" height="4" rx="2" fill="#667eea"/>
+
+  <!-- ペンアイコン -->
+  <circle cx="85" cy="85" r="18" fill="#764ba2"/>
+  <path d="M 85 75 L 85 95 M 75 85 L 95 85" stroke="white" stroke-width="3" stroke-linecap="round"/>
+</svg>

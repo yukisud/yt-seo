@@ -1,0 +1,221 @@
+/* YouTube Transcription Extension - Styles */
+
+/* 開くボタン */
+.yt-trans-open-button {
+  margin: 16px 0;
+  padding: 10px 20px;
+  background-color: #065fd4;
+  color: white;
+  border: none;
+  border-radius: 18px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.yt-trans-open-button:hover {
+  background-color: #0553c2;
+}
+
+/* メインパネル */
+#yt-transcription-panel {
+  position: fixed;
+  right: 20px;
+  top: 80px;
+  width: 400px;
+  max-height: 70vh;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Roboto', Arial, sans-serif;
+  overflow: hidden;
+}
+
+#yt-transcription-panel.hidden {
+  display: none;
+}
+
+/* ヘッダー */
+.yt-trans-header {
+  padding: 16px;
+  background: linear-gradient(to right, #065fd4, #0553c2);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 12px 12px 0 0;
+}
+
+.yt-trans-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.yt-trans-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.yt-trans-controls button {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.yt-trans-controls button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+#yt-trans-close-btn {
+  padding: 4px 10px !important;
+  font-size: 18px !important;
+  font-weight: bold;
+}
+
+/* コンテンツエリア */
+.yt-trans-content {
+  padding: 16px;
+  overflow-y: auto;
+  max-height: calc(70vh - 70px);
+  flex: 1;
+}
+
+#yt-trans-loading {
+  text-align: center;
+  padding: 20px;
+  color: #606060;
+  font-size: 14px;
+}
+
+#yt-trans-text {
+  color: #030303;
+}
+
+/* 字幕アイテム */
+.transcript-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.transcript-item {
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.transcript-item:hover {
+  background: #e8e8e8;
+  transform: translateX(2px);
+}
+
+.timestamp {
+  color: #065fd4;
+  font-weight: 500;
+  font-size: 12px;
+  min-width: 50px;
+  padding: 4px 8px;
+  background: white;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.transcript-item .text {
+  color: #030303;
+  font-size: 14px;
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* スクロールバーのカスタマイズ */
+.yt-trans-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.yt-trans-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.yt-trans-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.yt-trans-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+  #yt-transcription-panel {
+    background: #212121;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  }
+
+  .yt-trans-content {
+    color: #f1f1f1;
+  }
+
+  #yt-trans-loading {
+    color: #aaaaaa;
+  }
+
+  #yt-trans-text {
+    color: #f1f1f1;
+  }
+
+  .transcript-item {
+    background: #2d2d2d;
+  }
+
+  .transcript-item:hover {
+    background: #3a3a3a;
+  }
+
+  .transcript-item .text {
+    color: #f1f1f1;
+  }
+
+  .timestamp {
+    background: #1a1a1a;
+  }
+
+  .yt-trans-content::-webkit-scrollbar-track {
+    background: #2d2d2d;
+  }
+
+  .yt-trans-content::-webkit-scrollbar-thumb {
+    background: #555;
+  }
+
+  .yt-trans-content::-webkit-scrollbar-thumb:hover {
+    background: #777;
+  }
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  #yt-transcription-panel {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-width: none;
+  }
+}
