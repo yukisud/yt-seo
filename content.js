@@ -235,7 +235,18 @@ function getCaptionTracks() {
 // 字幕データを取得
 async function fetchCaptionData(url) {
   console.log('[字幕データ取得] URL:', url);
-  const response = await fetch(url);
+
+  // credentials: 'include' を追加してCookieを含める
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Accept': '*/*',
+      'Accept-Language': 'ja,en;q=0.9',
+    }
+  });
+
+  console.log('[字幕データ取得] レスポンスステータス:', response.status, response.statusText);
   const text = await response.text();
 
   console.log('[字幕データ取得] レスポンスサイズ:', text.length, 'bytes');
@@ -325,10 +336,15 @@ async function fetchTranscriptionFromAPI(videoId) {
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
+      credentials: 'include',  // Cookieを含める
       headers: {
         'Content-Type': 'application/json',
         'X-YouTube-Client-Name': '1',
-        'X-YouTube-Client-Version': '2.20240101.00.00'
+        'X-YouTube-Client-Version': '2.20240101.00.00',
+        'Accept': '*/*',
+        'Accept-Language': 'ja,en;q=0.9',
+        'Origin': 'https://www.youtube.com',
+        'Referer': `https://www.youtube.com/watch?v=${videoId}`
       },
       body: JSON.stringify(requestBody)
     });
@@ -398,15 +414,29 @@ async function fetchTranscriptionFromTimedText(videoId) {
         const fmtStr = fmt ? `&fmt=${fmt}` : '';
         console.log(`[方法3] 言語 ${lang} (format: ${fmt || 'default'}) を試行中...`);
 
-        // 通常の字幕を試す
+        // 通常の字幕を試す（credentials: 'include'を追加）
         let url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}${fmtStr}`;
-        let response = await fetch(url);
+        let response = await fetch(url, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': '*/*',
+            'Accept-Language': 'ja,en;q=0.9',
+          }
+        });
 
         // 通常の字幕がない場合、自動生成字幕を試す
         if (!response.ok) {
           console.log(`[方法3] 通常字幕なし、自動生成を試行: ${lang}`);
           url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}${fmtStr}&kind=asr`;
-          response = await fetch(url);
+          response = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Accept': '*/*',
+              'Accept-Language': 'ja,en;q=0.9',
+            }
+          });
         }
 
         if (!response.ok) {
