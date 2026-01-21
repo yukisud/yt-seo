@@ -43,6 +43,61 @@ function getVideoId() {
   return urlParams.get('v');
 }
 
+// ページのコンテキストでfetchを実行（CORS回避のため）
+async function fetchInPageContext(url) {
+  return new Promise((resolve, reject) => {
+    const messageId = 'fetch_' + Math.random().toString(36).substring(7);
+
+    // レスポンスを受け取るリスナー
+    const listener = (event) => {
+      if (event.source !== window) return;
+      if (event.data.type === 'FETCH_RESPONSE' && event.data.id === messageId) {
+        window.removeEventListener('message', listener);
+        if (event.data.error) {
+          reject(new Error(event.data.error));
+        } else {
+          resolve(event.data.data);
+        }
+      }
+    };
+
+    window.addEventListener('message', listener);
+
+    // ページコンテキストでfetchを実行するスクリプトを注入
+    const script = document.createElement('script');
+    script.textContent = `
+      (async function() {
+        try {
+          const response = await fetch('${url}');
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+          }
+          const text = await response.text();
+          window.postMessage({
+            type: 'FETCH_RESPONSE',
+            id: '${messageId}',
+            data: text
+          }, '*');
+        } catch (error) {
+          window.postMessage({
+            type: 'FETCH_RESPONSE',
+            id: '${messageId}',
+            error: error.message
+          }, '*');
+        }
+      })();
+    `;
+    document.documentElement.appendChild(script);
+    script.remove();
+
+    // タイムアウト（10秒）
+    setTimeout(() => {
+      window.removeEventListener('message', listener);
+      reject(new Error('Fetch timeout'));
+    }, 10000);
+  });
+}
+
 // 字幕を取得
 async function fetchTranscription() {
   const loadingDiv = document.getElementById('yt-trans-loading');
@@ -236,18 +291,8 @@ function getCaptionTracks() {
 async function fetchCaptionData(url) {
   console.log('[字幕データ取得] URL:', url);
 
-  // credentials: 'include' を追加してCookieを含める
-  const response = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      'Accept': '*/*',
-      'Accept-Language': 'ja,en;q=0.9',
-    }
-  });
-
-  console.log('[字幕データ取得] レスポンスステータス:', response.status, response.statusText);
-  const text = await response.text();
+  // ページのコンテキストでfetchを実行（CORS回避）
+  const text = await fetchInPageContext(url);
 
   console.log('[字幕データ取得] レスポンスサイズ:', text.length, 'bytes');
   console.log('[字幕データ取得] レスポンス内容（最初の500文字）:', text.substring(0, 500));
@@ -414,37 +459,23 @@ async function fetchTranscriptionFromTimedText(videoId) {
         const fmtStr = fmt ? `&fmt=${fmt}` : '';
         console.log(`[方法3] 言語 ${lang} (format: ${fmt || 'default'}) を試行中...`);
 
-        // 通常の字幕を試す（credentials: 'include'を追加）
+        // 通常の字幕を試す（ページコンテキストでfetch）
         let url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}${fmtStr}`;
-        let response = await fetch(url, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': '*/*',
-            'Accept-Language': 'ja,en;q=0.9',
-          }
-        });
+        let text = '';
 
-        // 通常の字幕がない場合、自動生成字幕を試す
-        if (!response.ok) {
+        try {
+          text = await fetchInPageContext(url);
+        } catch (error) {
+          // 通常の字幕がない場合、自動生成字幕を試す
           console.log(`[方法3] 通常字幕なし、自動生成を試行: ${lang}`);
           url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}${fmtStr}&kind=asr`;
-          response = await fetch(url, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Accept': '*/*',
-              'Accept-Language': 'ja,en;q=0.9',
-            }
-          });
+          try {
+            text = await fetchInPageContext(url);
+          } catch (error2) {
+            console.log(`[方法3] 言語 ${lang} (${fmt || 'default'}) は利用できません`);
+            continue;
+          }
         }
-
-        if (!response.ok) {
-          console.log(`[方法3] 言語 ${lang} (${fmt || 'default'}) は利用できません (status: ${response.status})`);
-          continue;
-        }
-
-        const text = await response.text();
 
         console.log(`[方法3] レスポンスサイズ: ${text.length} bytes`);
         console.log(`[方法3] レスポンス内容（最初の300文字）:`, text.substring(0, 300));
