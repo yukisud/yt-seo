@@ -299,58 +299,84 @@ async function fetchCaptionData(url) {
   return transcriptData;
 }
 
-// 方法2: YouTube内部APIから字幕を取得
+// 方法2: YouTube内部API (InnerTube) から字幕を取得
 async function fetchTranscriptionFromAPI(videoId) {
-  // YouTubeの内部APIエンドポイント
+  // InnerTube APIのエンドポイント
   const apiUrl = `https://www.youtube.com/youtubei/v1/get_transcript`;
 
-  // リクエストパラメータ
-  const params = {
+  // より詳細なコンテキストを含むリクエストパラメータ
+  const requestBody = {
     context: {
       client: {
+        hl: 'ja',
+        gl: 'JP',
         clientName: 'WEB',
-        clientVersion: '2.20240101.00.00'
+        clientVersion: '2.20240101.00.00',
+        userAgent: navigator.userAgent,
+        timeZone: 'Asia/Tokyo',
+        utcOffsetMinutes: 540
       }
     },
     params: btoa(`\n\x0b${videoId}`)
   };
+
+  console.log('[方法2] リクエストボディ:', JSON.stringify(requestBody, null, 2));
 
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-YouTube-Client-Name': '1',
+        'X-YouTube-Client-Version': '2.20240101.00.00'
       },
-      body: JSON.stringify(params)
+      body: JSON.stringify(requestBody)
     });
+
+    console.log('[方法2] レスポンスステータス:', response.status);
+    const responseText = await response.text();
+    console.log('[方法2] レスポンス内容（最初の500文字）:', responseText.substring(0, 500));
 
     if (!response.ok) {
       throw new Error(`API応答エラー: ${response.status}`);
     }
 
-    const data = await response.json();
-    const actions = data?.actions?.[0]?.updateEngagementPanelAction?.content?.transcriptRenderer?.body?.transcriptBodyRenderer?.cueGroups;
+    const data = JSON.parse(responseText);
 
-    if (!actions || actions.length === 0) {
+    // 複数のパスを試す
+    let cueGroups = data?.actions?.[0]?.updateEngagementPanelAction?.content?.transcriptRenderer?.body?.transcriptBodyRenderer?.cueGroups;
+
+    if (!cueGroups) {
+      // 別のパスを試す
+      cueGroups = data?.actions?.[0]?.addChatItemAction?.item?.liveChatTextMessageRenderer?.message?.runs;
+    }
+
+    if (!cueGroups) {
+      console.error('[方法2] レスポンス構造:', JSON.stringify(data, null, 2).substring(0, 1000));
       throw new Error('字幕データが見つかりません');
     }
 
+    console.log('[方法2] cueGroups数:', cueGroups.length);
+
     const transcriptData = [];
-    actions.forEach(cueGroup => {
+    cueGroups.forEach(cueGroup => {
       const cue = cueGroup?.transcriptCueGroupRenderer?.cues?.[0]?.transcriptCueRenderer;
       if (cue) {
         const start = parseFloat(cue.startOffsetMs) / 1000;
         const duration = parseFloat(cue.durationMs) / 1000;
-        const text = cue.cue.simpleText;
+        const text = cue.cue?.simpleText || cue.cue?.runs?.map(r => r.text).join('') || '';
 
-        transcriptData.push({
-          start,
-          duration,
-          text
-        });
+        if (text) {
+          transcriptData.push({
+            start,
+            duration,
+            text
+          });
+        }
       }
     });
 
+    console.log('[方法2] 取得件数:', transcriptData.length);
     return transcriptData;
   } catch (error) {
     console.error('[方法2] エラー:', error);
