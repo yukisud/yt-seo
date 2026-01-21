@@ -58,28 +58,74 @@ async function fetchTranscription() {
       throw new Error('動画IDが取得できません');
     }
 
-    // YouTubeのプレイヤーレスポンスから字幕トラックを取得
-    const captionTracks = await getCaptionTracks();
+    console.log('[字幕取得] 動画ID:', videoId);
+    loadingDiv.textContent = '字幕を取得中... (方法1/3)';
 
-    if (!captionTracks || captionTracks.length === 0) {
-      throw new Error('この動画には字幕がありません');
+    // 方法1: YouTubeのプレイヤーレスポンスから取得
+    let captionTracks = null;
+    let transcriptData = null;
+
+    try {
+      captionTracks = await getCaptionTracks();
+      console.log('[字幕取得] 方法1: 字幕トラック取得成功', captionTracks);
+
+      if (captionTracks && captionTracks.length > 0) {
+        // 日本語の字幕を優先、なければ最初の字幕を使用
+        let selectedTrack = captionTracks.find(track =>
+          track.languageCode === 'ja' || track.languageCode === 'ja-JP'
+        ) || captionTracks[0];
+
+        console.log('[字幕取得] 選択された字幕:', selectedTrack.languageCode);
+        transcriptData = await fetchCaptionData(selectedTrack.baseUrl);
+      }
+    } catch (error) {
+      console.warn('[字幕取得] 方法1失敗:', error.message);
     }
 
-    // 日本語の字幕を優先、なければ最初の字幕を使用
-    let selectedTrack = captionTracks.find(track =>
-      track.languageCode === 'ja' || track.languageCode === 'ja-JP'
-    ) || captionTracks[0];
+    // 方法2: YouTube内部APIを直接使用
+    if (!transcriptData || transcriptData.length === 0) {
+      console.log('[字幕取得] 方法2を試行: 内部API');
+      loadingDiv.textContent = '字幕を取得中... (方法2/3)';
 
-    // 字幕データを取得
-    const transcriptData = await fetchCaptionData(selectedTrack.baseUrl);
+      try {
+        transcriptData = await fetchTranscriptionFromAPI(videoId);
+        console.log('[字幕取得] 方法2: 成功');
+      } catch (error) {
+        console.warn('[字幕取得] 方法2失敗:', error.message);
+      }
+    }
+
+    // 方法3: timedtext APIを直接使用
+    if (!transcriptData || transcriptData.length === 0) {
+      console.log('[字幕取得] 方法3を試行: timedtext API');
+      loadingDiv.textContent = '字幕を取得中... (方法3/3)';
+
+      try {
+        transcriptData = await fetchTranscriptionFromTimedText(videoId);
+        console.log('[字幕取得] 方法3: 成功');
+      } catch (error) {
+        console.warn('[字幕取得] 方法3失敗:', error.message);
+      }
+    }
+
+    if (!transcriptData || transcriptData.length === 0) {
+      throw new Error('この動画には字幕がありません。または字幕が取得できませんでした。');
+    }
 
     // 字幕を表示
     displayTranscription(transcriptData);
     loadingDiv.style.display = 'none';
+    console.log('[字幕取得] 完了:', transcriptData.length + '件');
 
   } catch (error) {
-    console.error('字幕の取得に失敗しました:', error);
-    loadingDiv.textContent = `エラー: ${error.message}`;
+    console.error('[字幕取得] 最終エラー:', error);
+    loadingDiv.innerHTML = `
+      <div style="color: #d32f2f;">
+        <strong>エラー:</strong> ${error.message}
+        <br><br>
+        <small>デバッグ情報をコンソールで確認してください (F12キー)</small>
+      </div>
+    `;
     textDiv.innerHTML = '';
   }
 }
@@ -88,43 +134,66 @@ async function fetchTranscription() {
 function getCaptionTracks() {
   return new Promise((resolve, reject) => {
     try {
-      // ytInitialPlayerResponseを探す
-      const scripts = document.querySelectorAll('script');
       let playerResponse = null;
 
-      for (const script of scripts) {
-        const content = script.textContent;
-        if (content.includes('ytInitialPlayerResponse')) {
-          const match = content.match(/ytInitialPlayerResponse\s*=\s*({.+?});/);
-          if (match) {
-            playerResponse = JSON.parse(match[1]);
-            break;
+      // 方法1: window.ytInitialPlayerResponse
+      if (window.ytInitialPlayerResponse) {
+        playerResponse = window.ytInitialPlayerResponse;
+        console.log('[方法1] window.ytInitialPlayerResponse から取得');
+      }
+
+      // 方法2: scriptタグから取得（より堅牢な正規表現）
+      if (!playerResponse) {
+        const scripts = document.querySelectorAll('script');
+        for (const script of scripts) {
+          const content = script.textContent;
+          if (content.includes('ytInitialPlayerResponse')) {
+            try {
+              // より堅牢な正規表現: 複数行にまたがるJSONも取得
+              const matches = content.match(/var\s+ytInitialPlayerResponse\s*=\s*(\{[^;]+\});/);
+              if (matches && matches[1]) {
+                playerResponse = JSON.parse(matches[1]);
+                console.log('[方法1] scriptタグから取得');
+                break;
+              }
+            } catch (e) {
+              console.warn('[方法1] JSON解析失敗:', e.message);
+              continue;
+            }
           }
         }
       }
 
-      if (!playerResponse) {
-        // 別の方法: window.ytInitialPlayerResponseを試す
-        if (window.ytInitialPlayerResponse) {
-          playerResponse = window.ytInitialPlayerResponse;
+      // 方法3: ytplayer.config から取得
+      if (!playerResponse && window.ytplayer && window.ytplayer.config) {
+        playerResponse = window.ytplayer.config.args.player_response;
+        if (typeof playerResponse === 'string') {
+          playerResponse = JSON.parse(playerResponse);
         }
+        console.log('[方法1] ytplayer.config から取得');
       }
 
       if (!playerResponse) {
+        console.error('[方法1] プレイヤーレスポンスが見つかりません');
         reject(new Error('プレイヤー情報が取得できません'));
         return;
       }
 
+      console.log('[方法1] プレイヤーレスポンス:', playerResponse);
+
       const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
 
-      if (!captionTracks) {
+      if (!captionTracks || captionTracks.length === 0) {
+        console.error('[方法1] 字幕トラックが見つかりません');
         reject(new Error('字幕トラックが見つかりません'));
         return;
       }
 
+      console.log('[方法1] 字幕トラック数:', captionTracks.length);
       resolve(captionTracks);
 
     } catch (error) {
+      console.error('[方法1] エラー:', error);
       reject(error);
     }
   });
@@ -132,6 +201,7 @@ function getCaptionTracks() {
 
 // 字幕データを取得
 async function fetchCaptionData(url) {
+  console.log('[字幕データ取得] URL:', url);
   const response = await fetch(url);
   const text = await response.text();
 
@@ -160,7 +230,135 @@ async function fetchCaptionData(url) {
     });
   });
 
+  console.log('[字幕データ取得] 取得件数:', transcriptData.length);
   return transcriptData;
+}
+
+// 方法2: YouTube内部APIから字幕を取得
+async function fetchTranscriptionFromAPI(videoId) {
+  // YouTubeの内部APIエンドポイント
+  const apiUrl = `https://www.youtube.com/youtubei/v1/get_transcript`;
+
+  // リクエストパラメータ
+  const params = {
+    context: {
+      client: {
+        clientName: 'WEB',
+        clientVersion: '2.20240101.00.00'
+      }
+    },
+    params: btoa(`\n\x0b${videoId}`)
+  };
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params)
+    });
+
+    if (!response.ok) {
+      throw new Error(`API応答エラー: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const actions = data?.actions?.[0]?.updateEngagementPanelAction?.content?.transcriptRenderer?.body?.transcriptBodyRenderer?.cueGroups;
+
+    if (!actions || actions.length === 0) {
+      throw new Error('字幕データが見つかりません');
+    }
+
+    const transcriptData = [];
+    actions.forEach(cueGroup => {
+      const cue = cueGroup?.transcriptCueGroupRenderer?.cues?.[0]?.transcriptCueRenderer;
+      if (cue) {
+        const start = parseFloat(cue.startOffsetMs) / 1000;
+        const duration = parseFloat(cue.durationMs) / 1000;
+        const text = cue.cue.simpleText;
+
+        transcriptData.push({
+          start,
+          duration,
+          text
+        });
+      }
+    });
+
+    return transcriptData;
+  } catch (error) {
+    console.error('[方法2] エラー:', error);
+    throw error;
+  }
+}
+
+// 方法3: timedtext APIを直接使用
+async function fetchTranscriptionFromTimedText(videoId) {
+  // 字幕の言語リストを試す（日本語優先）
+  const languages = ['ja', 'en', 'ko', 'zh-Hans', 'zh-Hant'];
+
+  for (const lang of languages) {
+    try {
+      console.log(`[方法3] 言語 ${lang} を試行中...`);
+
+      // timedtext APIのURL
+      const url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=srv3`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        console.log(`[方法3] 言語 ${lang} は利用できません`);
+        continue;
+      }
+
+      const text = await response.text();
+
+      // XMLをパース
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(text, 'text/xml');
+
+      const textElements = xmlDoc.querySelectorAll('text');
+
+      if (textElements.length === 0) {
+        console.log(`[方法3] 言語 ${lang} に字幕データがありません`);
+        continue;
+      }
+
+      const transcriptData = [];
+      textElements.forEach(element => {
+        const start = parseFloat(element.getAttribute('start'));
+        const duration = parseFloat(element.getAttribute('dur') || '0');
+        const text = element.textContent
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\n/g, ' ')
+          .trim();
+
+        if (text) {
+          transcriptData.push({
+            start,
+            duration,
+            text
+          });
+        }
+      });
+
+      if (transcriptData.length > 0) {
+        console.log(`[方法3] 言語 ${lang} で取得成功: ${transcriptData.length}件`);
+        return transcriptData;
+      }
+
+    } catch (error) {
+      console.warn(`[方法3] 言語 ${lang} でエラー:`, error.message);
+      continue;
+    }
+  }
+
+  throw new Error('すべての言語で字幕の取得に失敗しました');
 }
 
 // 字幕を表示
