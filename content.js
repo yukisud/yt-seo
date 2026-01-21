@@ -238,32 +238,64 @@ async function fetchCaptionData(url) {
   const response = await fetch(url);
   const text = await response.text();
 
+  console.log('[字幕データ取得] レスポンスサイズ:', text.length, 'bytes');
+  console.log('[字幕データ取得] レスポンス内容（最初の500文字）:', text.substring(0, 500));
+
   // XMLをパース
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(text, 'text/xml');
 
-  const textElements = xmlDoc.querySelectorAll('text');
+  // パースエラーをチェック
+  const parserError = xmlDoc.querySelector('parsererror');
+  if (parserError) {
+    console.error('[字幕データ取得] XML解析エラー:', parserError.textContent);
+    throw new Error('XML解析に失敗しました');
+  }
+
+  // すべてのtext要素を探す（複数のセレクタを試す）
+  let textElements = xmlDoc.querySelectorAll('text');
+
+  if (textElements.length === 0) {
+    // 別の要素名を試す
+    textElements = xmlDoc.querySelectorAll('p');
+  }
+
+  console.log('[字幕データ取得] text要素数:', textElements.length);
+
+  if (textElements.length === 0) {
+    console.warn('[字幕データ取得] text要素が見つかりません。XML構造:', xmlDoc.documentElement?.tagName);
+    console.warn('[字幕データ取得] ルート要素の子要素:', Array.from(xmlDoc.documentElement?.children || []).map(el => el.tagName));
+  }
+
   const transcriptData = [];
 
   textElements.forEach(element => {
-    const start = parseFloat(element.getAttribute('start'));
-    const duration = parseFloat(element.getAttribute('dur'));
+    const start = parseFloat(element.getAttribute('start') || element.getAttribute('t') || '0');
+    const duration = parseFloat(element.getAttribute('dur') || element.getAttribute('d') || '0');
     const text = element.textContent
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
-      .replace(/\n/g, ' ');
+      .replace(/\n/g, ' ')
+      .trim();
 
-    transcriptData.push({
-      start,
-      duration,
-      text
-    });
+    if (text) {
+      transcriptData.push({
+        start,
+        duration,
+        text
+      });
+    }
   });
 
   console.log('[字幕データ取得] 取得件数:', transcriptData.length);
+
+  if (transcriptData.length > 0) {
+    console.log('[字幕データ取得] サンプル（最初の3件）:', transcriptData.slice(0, 3));
+  }
+
   return transcriptData;
 }
 
@@ -357,6 +389,9 @@ async function fetchTranscriptionFromTimedText(videoId) {
         }
 
         const text = await response.text();
+
+        console.log(`[方法3] レスポンスサイズ: ${text.length} bytes`);
+        console.log(`[方法3] レスポンス内容（最初の300文字）:`, text.substring(0, 300));
 
         if (!text || text.trim().length === 0) {
           console.log(`[方法3] 言語 ${lang} (${fmt || 'default'}) レスポンスが空`);
