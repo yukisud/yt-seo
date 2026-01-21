@@ -86,9 +86,11 @@ yt-seo/
 - `youtubei/v1/get_transcript` エンドポイントを使用
 - プレイヤーレスポンスが取得できない場合のフォールバック
 
-### 方法3: timedtext API
+### 方法3: timedtext API（最も確実）
 - YouTube の公開 timedtext API を直接使用
-- 複数の言語（ja, en, ko, zh-Hans, zh-Hant）を自動で試行
+- **複数のフォーマット**を自動で試行：srv3（新XML）、json3（JSON）、デフォルト（旧XML）
+- **自動生成字幕**にも対応（`kind=asr` パラメータ）
+- **10言語**を自動で試行（ja, en, ko, zh-Hans, zh-Hant, es, fr, de, pt, ru）
 - 最も確実な取得方法
 
 これらの方法を順番に試すことで、様々な状況でも字幕を取得できるようになっています。
